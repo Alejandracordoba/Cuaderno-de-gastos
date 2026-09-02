@@ -1,0 +1,19 @@
+{
+  "name": "cuaderno-de-gastos",
+  "version": "1.0.0",
+  "description": "Aplicación de cuaderno de gastos con ingresos, egresos y cuotas",
+  "main": "index.js",
+  "scripts": {
+    "start": "npx serve www",
+    "build": "echo 'No build needed for web app'"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.2.2",
+    "@capacitor/cli": "^6.0.0",
+    "@capacitor/core": "^6.0.0",
+    "@capacitor/preferences": "^6.0.4"
+  },
+  "devDependencies": {
+    "serve": "^14.0.0"
+  }
+}

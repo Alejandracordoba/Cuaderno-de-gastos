@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Cuaderno de Gastos</string>
+    <string name="title_activity_main">Cuaderno de Gastos</string>
+    <string name="package_name">com.cuaderno.gastos</string>
+    <string name="custom_url_scheme">com.cuaderno.gastos</string>
+</resources>
