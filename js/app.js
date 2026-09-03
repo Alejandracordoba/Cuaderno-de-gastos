@@ -158,20 +158,21 @@ var App = {
     this.data.installments.forEach(inst => {
       const paid = Math.min(inst.paidInstallments, inst.totalInstallments);
       const remaining = inst.totalInstallments - paid;
-      if (remaining > 0) {
-        const startParts = inst.startMonth.split('-');
-        const startYear = parseInt(startParts[0]);
-        const startMon = parseInt(startParts[1]);
-        const dueMonthDiff = (startYear - nextYear) * 12 + (startMon - nextMon);
-        const dueInNextMonth = dueMonthDiff <= 0 && dueMonthDiff > -inst.totalInstallments;
-        if (dueInNextMonth || remaining <= inst.totalInstallments) {
-          installmentEntries.push({
-            ...inst,
-            paid,
-            remaining,
-            nextPayment: inst.installmentAmount
-          });
-        }
+      if (remaining <= 0) return;
+      const startParts = inst.startMonth.split('-');
+      const startYear = parseInt(startParts[0]);
+      const startMon = parseInt(startParts[1]);
+      const nextPaymentMonth = startMon + inst.paidInstallments;
+      let nextPaymentYear = startYear + Math.floor((nextPaymentMonth - 1) / 12);
+      let nextPaymentMonthNorm = ((nextPaymentMonth - 1) % 12) + 1;
+      const dueNextMonth = nextPaymentYear === nextYear && nextPaymentMonthNorm === nextMon;
+      if (dueNextMonth) {
+        installmentEntries.push({
+          ...inst,
+          paid,
+          remaining,
+          nextPayment: inst.installmentAmount
+        });
       }
     });
 
