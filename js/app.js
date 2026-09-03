@@ -144,35 +144,77 @@ var App = {
 
     if (!container) return;
 
-    if (this.data.savings.length === 0) {
-      container.innerHTML = `<div class="empty-state"><span>💰</span>No hay ahorros registrados</div>`;
+    const now = new Date();
+    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    let nextYear = now.getFullYear();
+    let nextMon = now.getMonth() + 2;
+    if (nextMon > 12) { nextMon = 1; nextYear++; }
+    const nextMonthStr = `${nextYear}-${String(nextMon).padStart(2, '0')}`;
+
+    const futureSavings = this.data.savings.filter(s => s.month >= nextMonthStr);
+    const totalSavings = futureSavings.reduce((sum, s) => sum + s.amount, 0);
+
+    const upcomingInstallments = this.data.installments.filter(inst => {
+      const startParts = inst.startMonth.split('-');
+      const startYear = parseInt(startParts[0]);
+      const startMon = parseInt(startParts[1]);
+      if (startYear !== nextYear || startMon !== nextMon) return false;
+      const monthsDiff = (nextYear - startYear) * 12 + (nextMon - startMon);
+      return monthsDiff >= 0 && monthsDiff < inst.totalInstallments;
+    });
+    const totalInstallments = upcomingInstallments.reduce((sum, inst) => sum + inst.installmentAmount, 0);
+
+    const totalNeeded = totalSavings + totalInstallments;
+
+    let html = '';
+
+    if (upcomingInstallments.length > 0) {
+      html += `<h3 style="margin-top:16px;color:#6c5ce7;">💳 Cuotas próximo mes</h3>`;
+      html += upcomingInstallments.map(inst => {
+        const methodBadge = inst.paymentMethod === 'credit' ? '💳 Crédito' : '💰 Débito';
+        return `
+          <div class="installment-item">
+            <h4>${inst.desc} <span style="font-size:0.75rem;color:#888;">${methodBadge}</span></h4>
+            <div class="details">
+              <span>${inst.startMonth} · ${inst.paid}/${inst.totalInstallments} cuotas pagadas</span>
+              <span style="color:#e17055;font-weight:700;">${this.formatMoney(inst.installmentAmount)}</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    if (futureSavings.length > 0) {
+      html += `<h3 style="margin-top:16px;color:#00b894;">💰 Ahorros próximo mes</h3>`;
+      html += futureSavings.map(s => `
+        <div class="installment-item">
+          <h4>${s.desc}</h4>
+          <div class="details">
+            <span>${s.month}</span>
+            <span style="color:#00b894;font-weight:700;">${this.formatMoney(s.amount)}</span>
+          </div>
+          <button onclick="App.deleteSavings(${s.id})" style="margin-top:8px;background:none;border:1px solid #00b894;color:#00b894;padding:6px 12px;border-radius:6px;font-size:0.8rem;cursor:pointer;">Eliminar</button>
+        </div>
+      `).join('');
+    }
+
+    if (html === '') {
+      container.innerHTML = `<div class="empty-state"><span>📒</span>No hay datos para próximo mes</div>`;
       if (totalEl) totalEl.innerHTML = '';
       return;
     }
 
-    const now = new Date();
-    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    const futureSavings = this.data.savings.filter(s => s.month >= currentMonth);
-    const total = futureSavings.reduce((sum, s) => sum + s.amount, 0);
-
-    container.innerHTML = futureSavings.map(s => `
-      <div class="installment-item">
-        <h4>${s.desc}</h4>
-        <div class="details">
-          <span>${s.month}</span>
-          <span style="color:#00b894;font-weight:700;">${this.formatMoney(s.amount)}</span>
-        </div>
-        <button onclick="App.deleteSavings(${s.id})" style="margin-top:8px;background:none;border:1px solid #00b894;color:#00b894;padding:6px 12px;border-radius:6px;font-size:0.8rem;cursor:pointer;">Eliminar</button>
-      </div>
-    `).join('');
+    container.innerHTML = html;
 
     if (totalEl) {
       totalEl.innerHTML = `
         <div class="monthly-box" style="margin-top:12px;">
           <div style="display:flex;justify-content:space-between;align-items:center;">
-            <span style="color:#00b894;font-weight:600;">Total ahorrado próximo mes:</span>
-            <span style="color:#00b894;font-weight:700;font-size:1.1rem;">${this.formatMoney(total)}</span>
+            <span style="color:#e17055;font-weight:600;">Total necesario próximo mes:</span>
+            <span style="color:#e17055;font-weight:700;font-size:1.1rem;">${this.formatMoney(totalNeeded)}</span>
           </div>
+          ${totalSavings > 0 ? `<div style="text-align:right;font-size:0.8rem;color:#00b894;margin-top:4px;">Ahorros: ${this.formatMoney(totalSavings)}</div>` : ''}
+          ${totalInstallments > 0 ? `<div style="text-align:right;font-size:0.8rem;color:#e17055;margin-top:2px;">Cuotas: ${this.formatMoney(totalInstallments)}</div>` : ''}
         </div>
       `;
     }
