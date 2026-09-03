@@ -154,34 +154,69 @@ var App = {
     const futureSavings = this.data.savings.filter(s => s.month >= nextMonthStr);
     const totalSavings = futureSavings.reduce((sum, s) => sum + s.amount, 0);
 
-    const upcomingInstallments = this.data.installments.filter(inst => {
-      const startParts = inst.startMonth.split('-');
-      const startYear = parseInt(startParts[0]);
-      const startMon = parseInt(startParts[1]);
-      if (startYear !== nextYear || startMon !== nextMon) return false;
-      const monthsDiff = (nextYear - startYear) * 12 + (nextMon - startMon);
-      return monthsDiff >= 0 && monthsDiff < inst.totalInstallments;
+    const installmentEntries = [];
+    this.data.installments.forEach(inst => {
+      const paid = Math.min(inst.paidInstallments, inst.totalInstallments);
+      const remaining = inst.totalInstallments - paid;
+      if (remaining > 0) {
+        const startParts = inst.startMonth.split('-');
+        const startYear = parseInt(startParts[0]);
+        const startMon = parseInt(startParts[1]);
+        const dueMonthDiff = (startYear - nextYear) * 12 + (startMon - nextMon);
+        const dueInNextMonth = dueMonthDiff <= 0 && dueMonthDiff > -inst.totalInstallments;
+        if (dueInNextMonth || remaining <= inst.totalInstallments) {
+          installmentEntries.push({
+            ...inst,
+            paid,
+            remaining,
+            nextPayment: inst.installmentAmount
+          });
+        }
+      }
     });
-    const totalInstallments = upcomingInstallments.reduce((sum, inst) => sum + inst.installmentAmount, 0);
 
-    const totalNeeded = totalSavings + totalInstallments;
+    const totalInstallmentPayments = installmentEntries.reduce((sum, inst) => sum + inst.installmentAmount, 0);
+
+    const creditNoInstallment = this.data.transactions.filter(t => {
+      if (t.type !== 'expense' || t.paymentMethod !== 'credit') return false;
+      if (this.data.installments.find(i => i.transactionId === t.id)) return false;
+      const purchaseDate = new Date(t.date);
+      let nextMonCalc = purchaseDate.getMonth() + 2;
+      let nextYearCalc = purchaseDate.getFullYear();
+      if (nextMonCalc > 12) { nextMonCalc = 1; nextYearCalc++; }
+      return `${nextYearCalc}-${String(nextMonCalc).padStart(2, '0')}` === nextMonthStr;
+    });
+    const totalCreditPayments = creditNoInstallment.reduce((sum, t) => sum + t.amount, 0);
+
+    const totalNeeded = totalSavings + totalInstallmentPayments + totalCreditPayments;
 
     let html = '';
 
-    if (upcomingInstallments.length > 0) {
-      html += `<h3 style="margin-top:16px;color:#6c5ce7;">💳 Cuotas próximo mes</h3>`;
-      html += upcomingInstallments.map(inst => {
-        const methodBadge = inst.paymentMethod === 'credit' ? '💳 Crédito' : '💰 Débito';
-        return `
-          <div class="installment-item">
-            <h4>${inst.desc} <span style="font-size:0.75rem;color:#888;">${methodBadge}</span></h4>
-            <div class="details">
-              <span>${inst.startMonth} · ${inst.paid}/${inst.totalInstallments} cuotas pagadas</span>
-              <span style="color:#e17055;font-weight:700;">${this.formatMoney(inst.installmentAmount)}</span>
-            </div>
+    if (installmentEntries.length > 0) {
+      html += `<h3 style="margin-top:16px;color:#6c5ce7;">💳 Cuotas pendientes</h3>`;
+      html += installmentEntries.map(inst => `
+        <div class="installment-item">
+          <h4>${inst.desc} <span style="font-size:0.75rem;color:#888;">${inst.paymentMethod === 'credit' ? '💳 Crédito' : '💰 Débito'}</span></h4>
+          <div class="details">
+            <span>${inst.paid}/${inst.totalInstallments} cuotas pagadas</span>
+            <span style="color:#e17055;font-weight:700;">${this.formatMoney(inst.installmentAmount)}</span>
           </div>
-        `;
-      }).join('');
+          ${inst.remaining > 0 ? `<button onclick="App.payInstallment(${inst.id})" style="margin-top:6px;background:none;border:1px solid #00b894;color:#00b894;padding:6px 12px;border-radius:6px;font-size:0.8rem;cursor:pointer;">✅ Pagar cuota (${inst.remaining} restantes)</button>` : ''}
+        </div>
+      `).join('');
+    }
+
+    if (creditNoInstallment.length > 0) {
+      html += `<h3 style="margin-top:16px;color:#e17055;">💳 Compras crédito</h3>`;
+      html += creditNoInstallment.map(t => `
+        <div class="installment-item">
+          <h4>${t.desc}</h4>
+          <div class="details">
+            <span>${this.formatDate(t.date)} · Crédito</span>
+            <span style="color:#e17055;font-weight:700;">${this.formatMoney(t.amount)}</span>
+          </div>
+        </div>
+      `).join('');
     }
 
     if (futureSavings.length > 0) {
@@ -214,7 +249,8 @@ var App = {
             <span style="color:#e17055;font-weight:700;font-size:1.1rem;">${this.formatMoney(totalNeeded)}</span>
           </div>
           ${totalSavings > 0 ? `<div style="text-align:right;font-size:0.8rem;color:#00b894;margin-top:4px;">Ahorros: ${this.formatMoney(totalSavings)}</div>` : ''}
-          ${totalInstallments > 0 ? `<div style="text-align:right;font-size:0.8rem;color:#e17055;margin-top:2px;">Cuotas: ${this.formatMoney(totalInstallments)}</div>` : ''}
+          ${totalInstallmentPayments > 0 ? `<div style="text-align:right;font-size:0.8rem;color:#e17055;margin-top:2px;">Cuotas: ${this.formatMoney(totalInstallmentPayments)}</div>` : ''}
+          ${totalCreditPayments > 0 ? `<div style="text-align:right;font-size:0.8rem;color:#e17055;margin-top:2px;">Crédito sin cuotas: ${this.formatMoney(totalCreditPayments)}</div>` : ''}
         </div>
       `;
     }
