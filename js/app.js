@@ -1,6 +1,7 @@
 var App = {
   async init() {
     this.data = await this.loadData();
+    if (!this.data) this.data = { transactions: [], installments: [], fixedExpenses: [], savings: [] };
     if (!this.data.fixedExpenses) this.data.fixedExpenses = [];
     if (!this.data.savings) this.data.savings = [];
     this.setupTabs();
@@ -96,6 +97,84 @@ var App = {
       let nextYear = now.getFullYear();
       if (nextMon > 12) { nextMon = 1; nextYear++; }
       saveMonth.value = `${nextYear}-${String(nextMon).padStart(2, '0')}`;
+    }
+    this.renderNextMonth();
+  },
+
+  async addSavings() {
+    const desc = document.getElementById('input-save-desc').value.trim();
+    const amount = parseFloat(document.getElementById('input-save-amount').value);
+    const month = document.getElementById('input-save-month').value;
+    if (!desc || !amount || !month) {
+      this.toast('Completa todos los campos');
+      return;
+    }
+    this.data.savings.push({
+      id: Date.now(),
+      desc,
+      amount,
+      month,
+      createdAt: new Date().toISOString()
+    });
+    await this.save();
+    this.render();
+    this.resetSaveForm();
+    this.toast('Ahorro agregado');
+  },
+
+  resetSaveForm() {
+    document.getElementById('input-save-desc').value = '';
+    document.getElementById('input-save-amount').value = '';
+  },
+
+  deleteSavings(id) {
+    return this._deleteSavings(id);
+  },
+  async _deleteSavings(id) {
+    if (!confirm('¿Eliminar este ahorro?')) return;
+    this.data.savings = this.data.savings.filter(s => s.id !== id);
+    await this.save();
+    this.render();
+    this.toast('Ahorro eliminado');
+  },
+
+  renderNextMonth() {
+    const container = document.getElementById('nextmonth-list');
+    const totalEl = document.getElementById('nextmonth-total');
+
+    if (!container) return;
+
+    if (this.data.savings.length === 0) {
+      container.innerHTML = `<div class="empty-state"><span>💰</span>No hay ahorros registrados</div>`;
+      if (totalEl) totalEl.innerHTML = '';
+      return;
+    }
+
+    const now = new Date();
+    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const futureSavings = this.data.savings.filter(s => s.month >= currentMonth);
+    const total = futureSavings.reduce((sum, s) => sum + s.amount, 0);
+
+    container.innerHTML = futureSavings.map(s => `
+      <div class="installment-item">
+        <h4>${s.desc}</h4>
+        <div class="details">
+          <span>${s.month}</span>
+          <span style="color:#00b894;font-weight:700;">${this.formatMoney(s.amount)}</span>
+        </div>
+        <button onclick="App.deleteSavings(${s.id})" style="margin-top:8px;background:none;border:1px solid #00b894;color:#00b894;padding:6px 12px;border-radius:6px;font-size:0.8rem;cursor:pointer;">Eliminar</button>
+      </div>
+    `).join('');
+
+    if (totalEl) {
+      totalEl.innerHTML = `
+        <div class="monthly-box" style="margin-top:12px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span style="color:#00b894;font-weight:600;">Total ahorrado próximo mes:</span>
+            <span style="color:#00b894;font-weight:700;font-size:1.1rem;">${this.formatMoney(total)}</span>
+          </div>
+        </div>
+      `;
     }
   },
 
@@ -233,6 +312,7 @@ var App = {
   render() {
     this.renderDashboard();
     this.renderSubscriptions();
+    this.renderNextMonth();
     this.renderHistory();
     this.renderInstallments();
   },
