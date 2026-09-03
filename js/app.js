@@ -4,12 +4,34 @@ var App = {
     if (!this.data) this.data = { transactions: [], installments: [], fixedExpenses: [], savings: [] };
     if (!this.data.fixedExpenses) this.data.fixedExpenses = [];
     if (!this.data.savings) this.data.savings = [];
+    this.autoPayInstallments();
     this.setupTabs();
     this.setupForm();
     this.setupSavings();
     this.setupFilters();
     this.setDefaultDate();
     this.render();
+  },
+
+  autoPayInstallments() {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMon = now.getMonth() + 1;
+    let changed = false;
+    this.data.installments.forEach(inst => {
+      const startParts = inst.startMonth.split('-');
+      const startYear = parseInt(startParts[0]);
+      const startMon = parseInt(startParts[1]);
+      let monthsDiff = (currentYear - startYear) * 12 + (currentMon - startMon);
+      monthsDiff = Math.max(0, monthsDiff);
+      if (monthsDiff > inst.paidInstallments) {
+        inst.paidInstallments = Math.min(monthsDiff, inst.totalInstallments);
+        changed = true;
+      }
+    });
+    if (changed) {
+      this.save();
+    }
   },
 
   // ── Storage ──────────────────────────────────────────
