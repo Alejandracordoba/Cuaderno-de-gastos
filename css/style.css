@@ -182,6 +182,25 @@ h2 {
   font-size: 1rem;
 }
 
+#installment-fields,
+#subscription-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#installment-fields input,
+#subscription-fields select {
+  width: 100%;
+}
+
+#installment-fields label,
+#subscription-fields label {
+  font-size: 0.8rem;
+  color: #888;
+  margin-top: 4px;
+}
+
 #form-add input:focus,
 #form-add select:focus {
   outline: none;

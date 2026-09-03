@@ -468,35 +468,41 @@ var App = {
       let currentMon = now.getMonth() + 1;
 
       let monthsDiff = (currentYear - startYear) * 12 + (currentMon - startMon);
+      monthsDiff = Math.max(0, monthsDiff);
+      const paid = Math.min(Math.max(inst.paidInstallments, monthsDiff), inst.totalInstallments);
 
-       if (monthsDiff >= 0 && monthsDiff < inst.totalInstallments) {
-          const remaining = inst.totalInstallments - monthsDiff;
-          const method = inst.paymentMethod === 'credit' ? '💳' : '💰';
-          upcoming.push({
-            desc: inst.desc,
-            amount: inst.installmentAmount,
-            remaining,
-            paid: monthsDiff + 1,
-            total: inst.totalInstallments,
-            method
-          });
-        }
-      });
+      if (monthsDiff >= 0 && monthsDiff < inst.totalInstallments) {
+        const remaining = inst.totalInstallments - paid;
+        const method = inst.paymentMethod === 'credit' ? '💳' : '💰';
+        upcoming.push({
+          desc: inst.desc,
+          amount: inst.installmentAmount,
+          remaining,
+          paid,
+          total: inst.totalInstallments,
+          method,
+          id: inst.id
+        });
+      }
+    });
 
-      if (upcoming.length === 0) {
+    if (upcoming.length === 0) {
       container.innerHTML = `<p>No hay cuotas pendientes este mes</p>`;
       return;
     }
 
-     container.innerHTML = upcoming.map(u => `
-       <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #2a2a4a;">
-         <div>
-           <div style="color:#fff;font-size:0.9rem;">${u.method} ${u.desc}</div>
-           <div style="color:#888;font-size:0.75rem;">${u.paid}/${u.total} cuotas · ${this.formatMoney(u.amount)}/cuota</div>
-         </div>
-         <div style="color:#e17055;font-weight:600;">${this.formatMoney(u.amount)}</div>
-       </div>
-     `).join('');
+    container.innerHTML = upcoming.map(u => `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #2a2a4a;">
+        <div>
+          <div style="color:#fff;font-size:0.9rem;">${u.method} ${u.desc}</div>
+          <div style="color:#888;font-size:0.75rem;">${u.paid}/${u.total} cuotas · ${this.formatMoney(u.amount)}/cuota</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="color:#e17055;font-weight:600;">${this.formatMoney(u.amount)}</span>
+          ${u.remaining > 0 ? `<button onclick="App.payInstallment(${u.id})" style="background:none;border:1px solid #00b894;color:#00b894;padding:4px 8px;border-radius:6px;font-size:0.75rem;cursor:pointer;">Pagar</button>` : ''}
+        </div>
+      </div>
+    `).join('');
   },
 
   // ── History ──────────────────────────────────────────
@@ -559,13 +565,7 @@ var App = {
     }
 
     container.innerHTML = this.data.installments.map(inst => {
-      const startParts = inst.startMonth.split('-');
-      const startYear = parseInt(startParts[0]);
-      const startMon = parseInt(startParts[1]);
-
-      let monthsDiff = (currentYear - startYear) * 12 + (currentMon - startMon);
-      monthsDiff = Math.max(0, monthsDiff);
-      const paid = Math.min(monthsDiff, inst.totalInstallments);
+      const paid = Math.min(inst.paidInstallments, inst.totalInstallments);
       const remaining = inst.totalInstallments - paid;
       const progress = (paid / inst.totalInstallments) * 100;
       const status = remaining === 0 ? 'paid' : 'remaining';
@@ -585,7 +585,8 @@ var App = {
             <span class="${status === 'paid' ? 'paid' : ''}">${status === 'paid' ? '✅ Completado' : `${remaining} cuotas restantes`}</span>
             <span>Total: ${this.formatMoney(inst.totalAmount)}</span>
           </div>
-          <button onclick="App.deleteInstallment(${inst.id})" style="margin-top:8px;background:none;border:1px solid #e17055;color:#e17055;padding:6px 12px;border-radius:6px;font-size:0.8rem;cursor:pointer;">Eliminar</button>
+          ${remaining > 0 ? `<button onclick="App.payInstallment(${inst.id})" style="margin-top:6px;background:none;border:1px solid #00b894;color:#00b894;padding:6px 12px;border-radius:6px;font-size:0.8rem;cursor:pointer;">✅ Pagar cuota</button>` : ''}
+          <button onclick="App.deleteInstallment(${inst.id})" style="margin-top:6px;background:none;border:1px solid #e17055;color:#e17055;padding:6px 12px;border-radius:6px;font-size:0.8rem;cursor:pointer;">Eliminar</button>
         </div>
       `;
     }).join('');
@@ -602,6 +603,22 @@ var App = {
     await this.save();
     this.render();
     this.toast('Movimiento eliminado');
+  },
+
+  payInstallment(id) {
+    return this._payInstallment(id);
+  },
+  async _payInstallment(id) {
+    const inst = this.data.installments.find(i => i.id === id);
+    if (!inst) return;
+    if (inst.paidInstallments >= inst.totalInstallments) {
+      this.toast('Todas las cuotas ya están pagadas');
+      return;
+    }
+    inst.paidInstallments++;
+    await this.save();
+    this.render();
+    this.toast('Cuota pagada');
   },
 
   deleteInstallment(id) {
